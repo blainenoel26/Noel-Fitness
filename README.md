@@ -2,6 +2,8 @@
 
 Guided dumbbell & kettlebell strength training you can run from your phone — at home or traveling.
 
+**Live app:** https://noel-fitness.vercel.app
+
 - **12-week program**, 4 full-body sessions/week, 30, 45 or 60 min each — your choice per workout (Foundation → Build → Strength, deload every 4th week)
 - **Guided player**: warm-up timer, set-by-set targets, rest timer with beeps/vibration, timed holds with "switch sides" cue, screen stays awake
 - **Auto progression** (double progression): suggests your next weight from what you logged last time
