@@ -16,6 +16,8 @@ export default function SettingsPage() {
   const { settings, sessions, loaded } = useStore();
   const sync = getSyncStatus();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"password" | "link">("password");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [msg, setMsg] = useState("");
@@ -31,6 +33,29 @@ export default function SettingsPage() {
 
   if (!loaded) return <div className="screen center muted">Loading…</div>;
   const week = currentWeek(sessions, settings);
+
+  const signIn = async () => {
+    const sb = supabase();
+    if (!sb || !email || !password) return;
+    setMsg("Signing in…");
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    setMsg(error ? error.message : "Signed in — syncing your workouts.");
+  };
+
+  const signUp = async () => {
+    const sb = supabase();
+    if (!sb || !email) return;
+    if (password.length < 8) return setMsg("Use a password of at least 8 characters.");
+    setMsg("Creating account…");
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: window.location.origin + "/settings" },
+    });
+    if (error) setMsg(error.message);
+    else if (!data.session) setMsg("Account created. Tap the confirmation link in your email once, then come back here and sign in.");
+    else setMsg("Account created — syncing your workouts.");
+  };
 
   const sendCode = async () => {
     const sb = supabase();
@@ -124,9 +149,29 @@ export default function SettingsPage() {
         </div>
       ) : (
         <div className="card">
-          <p className="small muted">Sign in to back up your workouts and use them on any device. No password needed.</p>
-          <input className="search" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-          {!sent ? (
+          <p className="small muted">Sign in to back up your workouts and use them on any device. </p>
+          <input className="search" type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          {mode === "password" ? (
+            <>
+              <input
+                className="search"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button className="btn primary block" onClick={signIn}>
+                Sign in
+              </button>
+              <button className="btn ghost block" onClick={signUp}>
+                Create account
+              </button>
+              <button className="link small" onClick={() => { setMode("link"); setMsg(""); }}>
+                Email me a sign-in link instead
+              </button>
+            </>
+          ) : !sent ? (
             <button className="btn primary block" onClick={sendCode}>
               Email me a sign-in code
             </button>
