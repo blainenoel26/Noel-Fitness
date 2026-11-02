@@ -92,6 +92,21 @@ export default function SettingsPage() {
         ))}
       </div>
 
+      <h3 className="section">Workout</h3>
+      <div className="card tight row-between">
+        <div>
+          <b>Hands-free mode</b>
+          <div className="small muted">Each set runs on a timer, logs itself, then rest starts and the next set follows. Off = tap to log each set.</div>
+        </div>
+        <button
+          className={`toggle ${settings.autoAdvance ? "on" : ""}`}
+          aria-pressed={settings.autoAdvance}
+          onClick={() => updateSettings({ autoAdvance: !settings.autoAdvance })}
+        >
+          <span />
+        </button>
+      </div>
+
       <h3 className="section">Equipment available right now</h3>
       <p className="small muted">Exercises you can&apos;t do are automatically swapped for an alternative.</p>
       {GEAR.map((g) => (

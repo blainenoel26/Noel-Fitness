@@ -33,6 +33,7 @@ export interface Session {
 export interface Settings {
   unit: Unit;
   length: SessionLength;
+  autoAdvance: boolean; // hands-free: sets and rests run on timers
   equipment: EquipmentSettings;
   // Lets the user jump to a week: at `sessionCount` completed sessions the week was `week`.
   anchor: { week: number; sessionCount: number };
@@ -41,6 +42,7 @@ export interface Settings {
 const DEFAULT_SETTINGS: Settings = {
   unit: "lb",
   length: 45,
+  autoAdvance: true,
   equipment: { db: true, kb: true, bench: true, box: true },
   anchor: { week: 1, sessionCount: 0 },
 };

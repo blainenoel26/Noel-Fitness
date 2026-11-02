@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EXERCISES, canDo, resolveExercise, videoUrl, type Exercise } from "@/lib/exercises";
@@ -29,6 +28,8 @@ interface Active {
 }
 
 const K_ACTIVE = "as.active";
+const GET_READY = 10; // seconds before a set that doesn't follow a rest
+const SWITCH = 5; // seconds to change sides on per-side work
 
 function loadActive(dayId: string): Active | null {
   try {
@@ -37,6 +38,17 @@ function loadActive(dayId: string): Active | null {
   } catch {
     return null;
   }
+}
+
+// Prescribed time for a set: holds use their hold time; rep sets allow
+// ~3s per rep plus setup. Per-side work runs both sides with a switch gap.
+function workSeconds(s: SetStep, ex: Exercise) {
+  let per: number;
+  const holds = s.target.match(/(\d+) × (\d+)s/);
+  if (s.seconds != null) per = s.seconds;
+  else if (holds) per = +holds[1] * (+holds[2] + 3);
+  else per = Math.max(20, (s.repRange ? s.repRange[1] : parseInt(s.target) || 10) * 3 + (ex.perSide ? 5 : 10));
+  return ex.perSide ? per * 2 + SWITCH : per;
 }
 
 // ---------- audio + haptics ----------
@@ -49,9 +61,9 @@ function unlockAudio() {
     /* no audio */
   }
 }
-function beep(times = 1, freq = 880) {
+function beep(times = 1, freq = 880, dur = 0.2) {
   try {
-    navigator.vibrate?.(times > 1 ? [200, 100, 200, 100, 300] : 200);
+    navigator.vibrate?.(times > 1 ? [200, 100, 200, 100, 300] : Math.round(dur * 1000));
     if (!audio) return;
     for (let i = 0; i < times; i++) {
       const o = audio.createOscillator();
@@ -62,9 +74,9 @@ function beep(times = 1, freq = 880) {
       const t = audio.currentTime + i * 0.28;
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       o.start(t);
-      o.stop(t + 0.22);
+      o.stop(t + dur + 0.02);
     }
   } catch {
     /* ignore */
@@ -97,12 +109,18 @@ function clock(sec: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-// ---------- timer hook ----------
-function useCountdown(onDone: () => void) {
+// ---------- one shared timer for ready / work / rest ----------
+type Phase = "idle" | "ready" | "work" | "rest";
+
+function useTimer(onDone: (phase: Phase) => void) {
   const [endAt, setEndAt] = useState<number | null>(null);
+  const [pausedLeft, setPausedLeft] = useState<number | null>(null);
+  const [total, setTotal] = useState(0);
   const [now, setNow] = useState(Date.now());
+  const phaseRef = useRef<Phase>("idle");
   const done = useRef(onDone);
   done.current = onDone;
+
   useEffect(() => {
     if (endAt == null) return;
     const t = setInterval(() => {
@@ -110,20 +128,46 @@ function useCountdown(onDone: () => void) {
       setNow(n);
       if (n >= endAt) {
         setEndAt(null);
-        done.current();
+        done.current(phaseRef.current);
       }
     }, 200);
     return () => clearInterval(t);
   }, [endAt]);
+
   return {
+    left: pausedLeft ?? (endAt == null ? 0 : Math.max(0, (endAt - now) / 1000)),
+    total,
     running: endAt != null,
-    left: endAt == null ? 0 : (endAt - now) / 1000,
-    start: (sec: number) => {
-      setNow(Date.now());
-      setEndAt(Date.now() + sec * 1000);
+    paused: pausedLeft != null,
+    start(sec: number, phase: Phase) {
+      phaseRef.current = phase;
+      const n = Date.now();
+      setNow(n);
+      setTotal(sec);
+      setPausedLeft(null);
+      setEndAt(n + sec * 1000);
     },
-    add: (sec: number) => setEndAt((e) => (e == null ? e : e + sec * 1000)),
-    stop: () => setEndAt(null),
+    pause() {
+      if (endAt == null) return;
+      setPausedLeft(Math.max(0, (endAt - Date.now()) / 1000));
+      setEndAt(null);
+    },
+    resume() {
+      if (pausedLeft == null) return;
+      const n = Date.now();
+      setNow(n);
+      setEndAt(n + pausedLeft * 1000);
+      setPausedLeft(null);
+    },
+    add(sec: number) {
+      if (endAt != null) setEndAt(endAt + sec * 1000);
+      else if (pausedLeft != null) setPausedLeft(pausedLeft + sec);
+      setTotal((t) => t + sec);
+    },
+    stop() {
+      setEndAt(null);
+      setPausedLeft(null);
+    },
   };
 }
 
@@ -131,11 +175,12 @@ export default function Player({ dayId }: { dayId: string }) {
   const router = useRouter();
   const store = useStore();
   const { settings, sessions } = store;
+  const auto = settings.autoAdvance;
   const day = getDay(dayId)!;
   useWakeLock();
 
   const [active, setActive] = useState<Active | null>(null);
-  const [mode, setMode] = useState<"work" | "rest">("work");
+  const [phase, setPhase] = useState<Phase>("idle");
   const [showHow, setShowHow] = useState(false);
   const [showSwap, setShowSwap] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -164,7 +209,9 @@ export default function Player({ dayId }: { dayId: string }) {
 
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(() => setElapsed((Date.now() - active.startedAt) / 1000), 1000);
+    const tick = () => setElapsed((Date.now() - active.startedAt) / 1000);
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, [active]);
 
@@ -182,35 +229,6 @@ export default function Player({ dayId }: { dayId: string }) {
     [active?.swaps, settings.equipment],
   );
 
-  const goto = (i: number) => {
-    setActive((a) => (a ? { ...a, idx: Math.max(0, Math.min(steps.length, i)) } : a));
-    setMode("work");
-    setShowHow(false);
-    setShowSwap(false);
-  };
-
-  const rest = useCountdown(() => {
-    beep(3);
-    goto(idx + 1);
-  });
-  const work = useCountdown(() => {
-    beep(2, 660);
-    if (step?.kind === "warmup") goto(idx + 1);
-  });
-
-  // Half-way "switch sides" cue for timed per-side holds.
-  const halfBeeped = useRef(false);
-  useEffect(() => {
-    if (!work.running) {
-      halfBeeped.current = false;
-      return;
-    }
-    if (step?.kind === "set" && step.seconds && exFor(step).perSide && !halfBeeped.current && work.left <= step.seconds) {
-      halfBeeped.current = true;
-      beep(1, 520);
-    }
-  }, [work.left, work.running, step, exFor]);
-
   // ---------- current-set form values ----------
   const [weight, setWeight] = useState<string>("");
   const [reps, setReps] = useState<number>(0);
@@ -223,7 +241,6 @@ export default function Player({ dayId }: { dayId: string }) {
   useEffect(() => {
     if (!setStep || !ex || !active) return;
     const existing = active.entries[setStep.key];
-    // previous set of the same exercise in this workout
     const prevKey = Object.keys(active.entries)
       .reverse()
       .find((k) => active.entries[k].exerciseId === ex.id);
@@ -235,12 +252,124 @@ export default function Player({ dayId }: { dayId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, ex?.id, active?.id]);
 
+  // ---------- flow control ----------
+  const timer = useTimer((p) => handlers.current[p]?.());
+
+  const resetUi = () => {
+    setShowHow(false);
+    setShowSwap(false);
+  };
+
+  const startWork = (i: number) => {
+    const st = steps[i];
+    if (!st) return;
+    const secs = st.kind === "warmup" ? st.move.seconds : workSeconds(st, exFor(st));
+    setPhase("work");
+    timer.start(secs, "work");
+    beep(1, 990, 0.15);
+  };
+
+  // Move to step i. `flowing` = we're in the automatic flow (after a rest or warm-up move).
+  const enter = (i: number, flowing: boolean) => {
+    const target = Math.max(0, Math.min(steps.length, i));
+    timer.stop();
+    resetUi();
+    setActive((a) => (a ? { ...a, idx: target } : a));
+    const st = steps[target];
+    if (!st) {
+      setPhase("idle");
+      return;
+    }
+    if (!auto || !flowing) {
+      setPhase("idle");
+      return;
+    }
+    if (st.kind === "warmup") startWork(target);
+    else if (steps[target - 1]?.kind === "set" && phase === "rest") startWork(target);
+    else {
+      setPhase("ready");
+      timer.start(GET_READY, "ready");
+    }
+  };
+
+  const commit = () => {
+    if (!setStep || !ex) return;
+    const w = parseFloat(weight);
+    const timed = setStep.seconds != null;
+    const entry: Entry = {
+      exerciseId: ex.id,
+      reps: timed ? null : reps,
+      weight: ex.implements.length > 0 && !Number.isNaN(w) ? w : null,
+      seconds: timed ? setStep.seconds : null,
+    };
+    setActive((a) => (a ? { ...a, entries: { ...a.entries, [setStep.key]: entry } } : a));
+  };
+
+  const finishWork = () => {
+    timer.stop();
+    if (!step) return;
+    if (step.kind === "warmup") {
+      beep(1, 660);
+      enter(idx + 1, auto);
+      return;
+    }
+    commit();
+    beep(2, 660);
+    if (idx + 1 >= steps.length) {
+      enter(steps.length, false);
+      return;
+    }
+    setPhase("rest");
+    timer.start(step.rest, "rest");
+  };
+
+  const finishRest = () => {
+    commit(); // pick up any edits made while resting
+    beep(1, 990, 0.3);
+    enter(idx + 1, true);
+  };
+
+  // Called when the user taps Start / Resume from idle.
+  const begin = () => {
+    unlockAudio();
+    if (!step) return;
+    if (step.kind === "warmup" || !auto) startWork(idx);
+    else {
+      setPhase("ready");
+      timer.start(GET_READY, "ready");
+    }
+  };
+
+  const handlers = useRef<Partial<Record<Phase, () => void>>>({});
+  handlers.current = {
+    ready: () => startWork(idx),
+    work: finishWork,
+    rest: finishRest,
+  };
+
+  // 3-2-1 countdown ticks and the side-switch cue
+  const lastTick = useRef<number | null>(null);
+  useEffect(() => {
+    if (!timer.running) return;
+    const sec = Math.ceil(timer.left);
+    if (sec === lastTick.current) return;
+    lastTick.current = sec;
+    if ((phase === "ready" || phase === "rest") && sec >= 1 && sec <= 3) beep(1, 660, 0.08);
+    if (phase === "work" && ex?.perSide && setStep) {
+      const side = (timer.total - SWITCH) / 2;
+      const el = timer.total - timer.left;
+      if (Math.abs(el - side) < 0.6) beep(2, 520, 0.12);
+    }
+  }, [timer.left, timer.running, timer.total, phase, ex?.perSide, setStep]);
+
   if (!active || !store.loaded) return <div className="screen center muted">Loading…</div>;
 
   const progress = Math.min(1, idx / steps.length);
   const remainingMin = estimateMinutes(steps.slice(idx));
-
-  const exit = () => router.push("/");
+  const exit = () => {
+    timer.stop();
+    router.push("/");
+  };
 
   // ---------- finished ----------
   if (!step) {
@@ -292,7 +421,7 @@ export default function Player({ dayId }: { dayId: string }) {
           <button className="btn primary block" onClick={finish}>
             Save workout
           </button>
-          <button className="btn ghost block" onClick={() => goto(steps.length - 1)}>
+          <button className="btn ghost block" onClick={() => enter(steps.length - 1, false)}>
             Back to last set
           </button>
         </div>
@@ -311,8 +440,7 @@ export default function Player({ dayId }: { dayId: string }) {
         </div>
         <div className="small muted row-between">
           <span>
-            Day {day.num} · Wk {info.week} · {length}m
-            {info.deload ? " · Deload" : ""}
+            Day {day.num} · Wk {info.week} · {length}m{info.deload ? " · Deload" : ""}
           </span>
           <span>
             {clock(elapsed)} · ~{remainingMin} min left
@@ -322,8 +450,15 @@ export default function Player({ dayId }: { dayId: string }) {
     </div>
   );
 
+  const pauseBtn = (
+    <button className="btn ghost" onClick={() => (timer.paused ? timer.resume() : timer.pause())} aria-label={timer.paused ? "Resume" : "Pause"}>
+      {timer.paused ? "▶" : "❚❚"}
+    </button>
+  );
+
   // ---------- warm-up ----------
   if (step.kind === "warmup") {
+    const firstSet = steps.findIndex((s) => s.kind === "set");
     return (
       <div className="screen player">
         {header}
@@ -332,66 +467,78 @@ export default function Player({ dayId }: { dayId: string }) {
         </div>
         <h1 className="ex-name">{step.move.name}</h1>
         <p className="lead">{step.move.cue}</p>
-        <div className="timer-ring">{work.running ? clock(work.left) : clock(step.move.seconds)}</div>
-        <div className="actions">
-          {work.running ? (
-            <button className="btn ghost" onClick={() => { work.stop(); goto(idx + 1); }}>
-              Skip ›
+        <div className={`timer-ring ${timer.paused ? "paused" : ""}`}>{phase === "work" ? clock(timer.left) : clock(step.move.seconds)}</div>
+        {phase === "work" ? (
+          <div className="control-row">
+            {pauseBtn}
+            <button className="btn ghost grow" onClick={finishWork}>
+              Next move ›
             </button>
-          ) : (
-            <>
-              <button className="btn primary" onClick={() => { unlockAudio(); work.start(step.move.seconds); }}>
-                ▶ Start {step.move.seconds}s
-              </button>
-              <button className="btn ghost" onClick={() => goto(steps.findIndex((s) => s.kind === "set"))}>
-                Skip warm-up
-              </button>
-            </>
-          )}
-        </div>
+          </div>
+        ) : (
+          <button className="btn primary block" onClick={begin}>
+            ▶ {idx === 0 && auto ? "Start workout" : `Start ${step.move.seconds}s`}
+          </button>
+        )}
+        <button className="btn ghost block" onClick={() => enter(firstSet, auto && phase !== "idle")}>
+          Skip warm-up ››
+        </button>
+        {idx === 0 && auto && phase === "idle" && (
+          <p className="small muted center-text">Hands-free: the workout runs itself from here. Pause or skip any time.</p>
+        )}
       </div>
     );
   }
 
+  // ---------- set ----------
   const s = step;
   const exercise = ex!;
   const nextSet = steps.slice(idx + 1).find((x): x is SetStep => x.kind === "set");
   const nextEx = nextSet ? exFor(nextSet) : null;
   const weighted = exercise.implements.length > 0;
   const timed = s.seconds != null;
-  const timedTotal = timed ? s.seconds! * (exercise.perSide ? 2 : 1) : 0;
+  const blockLetter = s.block[0];
+  const nextBlock = steps.findIndex((x, i) => i > idx && x.kind === "set" && x.block[0] !== blockLetter);
+  const skipBlock = () => enter(nextBlock === -1 ? steps.length : nextBlock, auto && phase !== "idle");
 
-  const logSet = () => {
-    unlockAudio();
-    const w = parseFloat(weight);
-    const entry: Entry = {
-      exerciseId: exercise.id,
-      reps: timed ? null : reps,
-      weight: weighted && !Number.isNaN(w) ? w : null,
-      seconds: timed ? s.seconds : null,
-    };
-    setActive((a) => (a ? { ...a, entries: { ...a.entries, [s.key]: entry } } : a));
-    work.stop();
-    if (idx + 1 >= steps.length) {
-      goto(idx + 1);
-    } else {
-      setMode("rest");
-      rest.start(s.rest);
-    }
-  };
+  const inputs = (
+    <div className="inputs">
+      {weighted && (
+        <div className="field">
+          <label>Weight ({settings.unit})</label>
+          <div className="stepper">
+            <button onClick={() => setWeight((w) => fmt(Math.max(0, (parseFloat(w) || 0) - (settings.unit === "kg" ? 1 : 2.5))))}>−</button>
+            <input inputMode="decimal" value={weight} placeholder="0" onChange={(e) => setWeight(e.target.value)} />
+            <button onClick={() => setWeight((w) => fmt((parseFloat(w) || 0) + (settings.unit === "kg" ? 1 : 2.5)))}>+</button>
+          </div>
+        </div>
+      )}
+      {!timed && (
+        <div className="field">
+          <label>Reps{exercise.perSide ? " / side" : ""}</label>
+          <div className="stepper">
+            <button onClick={() => setReps((r) => Math.max(0, r - 1))}>−</button>
+            <input inputMode="numeric" value={reps} onChange={(e) => setReps(parseInt(e.target.value) || 0)} />
+            <button onClick={() => setReps((r) => r + 1)}>+</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   // ---------- rest ----------
-  if (mode === "rest") {
+  if (phase === "rest") {
     return (
       <div className="screen player">
         {header}
-        <div className="chip">Rest</div>
-        <div className="timer-ring rest">{clock(rest.left)}</div>
-        <div className="row center gap">
-          <button className="btn ghost" onClick={() => rest.add(15)}>
+        <div className="chip rest-chip">Rest{timer.paused ? " — paused" : ""}</div>
+        <div className={`timer-ring rest ${timer.paused ? "paused" : ""}`}>{clock(timer.left)}</div>
+        <div className="control-row">
+          <button className="btn ghost" onClick={() => timer.add(15)}>
             +15s
           </button>
-          <button className="btn ghost" onClick={() => { rest.stop(); goto(idx + 1); }}>
+          {pauseBtn}
+          <button className="btn ghost grow" onClick={finishRest}>
             Skip rest ›
           </button>
         </div>
@@ -404,18 +551,32 @@ export default function Player({ dayId }: { dayId: string }) {
             </div>
           </div>
         )}
-        <button className="link small" onClick={() => { rest.stop(); setMode("work"); }}>
-          ‹ Edit the set I just logged
-        </button>
+        {(weighted || !timed) && (
+          <div className="card">
+            <div className="small muted">
+              Logged {exercise.name}, set {s.set}. Adjust if it differed:
+            </div>
+            {inputs}
+          </div>
+        )}
       </div>
     );
   }
 
-  // ---------- work ----------
+  // ---------- ready / work / idle ----------
   const swapOptions = [EXERCISES[s.exerciseId], ...EXERCISES[s.exerciseId].swaps.map((id) => EXERCISES[id])].filter(
     (e, i, arr) => e && arr.findIndex((x) => x.id === e.id) === i,
   );
-  const wStep = settings.unit === "kg" ? 1 : 2.5;
+
+  let sideLabel = "";
+  if (phase === "work" && exercise.perSide) {
+    const side = (timer.total - SWITCH) / 2;
+    const el = timer.total - timer.left;
+    sideLabel = el < side ? "Side 1" : el < side + SWITCH ? "Switch sides!" : "Side 2";
+  }
+
+  const ringText =
+    phase === "ready" || phase === "work" ? clock(timer.left) : clock(workSeconds(s, exercise));
 
   return (
     <div className="screen player">
@@ -433,10 +594,46 @@ export default function Player({ dayId }: { dayId: string }) {
       <div className="muted small">{exercise.muscles}</div>
       {exercise.id !== s.exerciseId && <div className="small accent">Swapped from {EXERCISES[s.exerciseId].name}</div>}
 
-      <div className="target">
-        <div className="target-main">{s.target}</div>
-        {s.rir !== "—" && <div className="small muted">Stop with {s.rir} rep{s.rir === "1" ? "" : "s"} left in the tank</div>}
+      <div className="work-row">
+        <div className="target">
+          <div className="target-main">{s.target}</div>
+          {s.rir !== "—" && <div className="small muted">Stop with {s.rir} rep{s.rir === "1" ? "" : "s"} left in the tank</div>}
+        </div>
+        {(auto || timed) && (
+          <div className="mini-timer">
+            <div className={`timer-ring small-ring ${phase === "ready" ? "ready" : ""} ${timer.paused ? "paused" : ""}`}>{ringText}</div>
+            <div className="small center-text accent">
+              {phase === "ready" ? "Get ready" : phase === "work" ? sideLabel || (timer.paused ? "Paused" : "Go!") : "Set time"}
+            </div>
+          </div>
+        )}
       </div>
+
+      {phase === "idle" ? (
+        auto || timed ? (
+          <button className="btn primary block" onClick={begin}>
+            ▶ {auto ? (Object.keys(active.entries).length ? "Resume" : "Start") : "Start timer"}
+          </button>
+        ) : null
+      ) : (
+        <div className="control-row">
+          {pauseBtn}
+          {phase === "ready" ? (
+            <button className="btn primary grow" onClick={() => startWork(idx)}>
+              Start now
+            </button>
+          ) : (
+            <button className="btn primary grow" onClick={finishWork}>
+              ✓ Done
+            </button>
+          )}
+          <button className="btn ghost" onClick={() => timer.add(15)}>
+            +15s
+          </button>
+        </div>
+      )}
+
+      {inputs}
 
       {(sug?.lastSummary || sug?.note) && (
         <div className="card tight">
@@ -446,47 +643,6 @@ export default function Player({ dayId }: { dayId: string }) {
             </div>
           )}
           {sug?.note && <div className="small accent">{sug.note}</div>}
-        </div>
-      )}
-
-      <div className="inputs">
-        {weighted && (
-          <div className="field">
-            <label>Weight ({settings.unit})</label>
-            <div className="stepper">
-              <button onClick={() => setWeight((w) => fmt(Math.max(0, (parseFloat(w) || 0) - wStep)))}>−</button>
-              <input inputMode="decimal" value={weight} placeholder="0" onChange={(e) => setWeight(e.target.value)} />
-              <button onClick={() => setWeight((w) => fmt((parseFloat(w) || 0) + wStep))}>+</button>
-            </div>
-          </div>
-        )}
-        {!timed && (
-          <div className="field">
-            <label>Reps{exercise.perSide ? " (per side)" : ""}</label>
-            <div className="stepper">
-              <button onClick={() => setReps((r) => Math.max(0, r - 1))}>−</button>
-              <input inputMode="numeric" value={reps} onChange={(e) => setReps(parseInt(e.target.value) || 0)} />
-              <button onClick={() => setReps((r) => r + 1)}>+</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {timed && (
-        <div className="timed">
-          <div className="timer-ring small-ring">
-            {work.running
-              ? exercise.perSide
-                ? `${clock(work.left > s.seconds! ? work.left - s.seconds! : work.left)}`
-                : clock(work.left)
-              : clock(s.seconds!)}
-          </div>
-          {work.running && exercise.perSide && <div className="small accent center-text">{work.left > s.seconds! ? "Side 1" : "Side 2 — switch!"}</div>}
-          {!work.running && (
-            <button className="btn ghost block" onClick={() => { unlockAudio(); work.start(timedTotal); }}>
-              ▶ Start timer{exercise.perSide ? " (both sides)" : ""}
-            </button>
-          )}
         </div>
       )}
 
@@ -533,16 +689,29 @@ export default function Player({ dayId }: { dayId: string }) {
       )}
 
       <div className="bottom-bar">
-        <button className="btn ghost" disabled={idx === 0} onClick={() => goto(idx - 1)} aria-label="Previous">
+        <button className="btn ghost" disabled={idx === 0} onClick={() => enter(idx - 1, false)} aria-label="Previous set">
           ‹
         </button>
-        <button className="btn primary grow" onClick={logSet}>
-          ✓ Log set{s.rest ? ` · rest ${s.rest}s` : ""}
-        </button>
+        {auto ? (
+          <>
+            <button className="btn ghost grow" onClick={() => enter(idx + 1, phase !== "idle")}>
+              Skip set ›
+            </button>
+            <button className="btn ghost grow" onClick={skipBlock}>
+              Skip {blockLetter} ››
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="btn primary grow" onClick={finishWork}>
+              ✓ Log set{s.rest ? ` · rest ${s.rest}s` : ""}
+            </button>
+            <button className="btn ghost" onClick={skipBlock} aria-label="Skip block">
+              ››
+            </button>
+          </>
+        )}
       </div>
-      <Link href="/" className="sr-only">
-        Home
-      </Link>
     </div>
   );
 }
