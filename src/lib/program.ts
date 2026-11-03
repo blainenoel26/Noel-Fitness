@@ -1,4 +1,4 @@
-import { EXERCISES, WARMUP, type Role, type WarmupMove } from "./exercises";
+import { EXERCISES, WARMUP, type Exercise, type Role, type WarmupMove } from "./exercises";
 
 // 12-week block-periodised program, 4 sessions/week. Each muscle group is
 // trained twice a week for ~10-16 hard sets, using double progression.
@@ -120,7 +120,7 @@ export const DAYS: Day[] = [
       { label: "A", title: "Power superset", items: [{ id: "kb-swing", role: "power" }, { id: "half-kneeling-kb-press", role: "primary" }] },
       { label: "B", title: "Strength superset", items: [{ id: "db-rdl", role: "primary" }, { id: "kb-gorilla-row", role: "secondary" }] },
       { label: "C", title: "Isolation superset", items: [{ id: "single-leg-calf-raise", role: "isolation" }, { id: "db-overhead-triceps", role: "isolation" }] },
-      { label: "D", title: "Loaded core circuit", items: [{ id: "turkish-get-up", role: "core" }, { id: "suitcase-carry", role: "core" }, { id: "bird-dog", role: "core" }] },
+      { label: "D", title: "Loaded core circuit", items: [{ id: "kb-plank-pull-through", role: "core" }, { id: "suitcase-carry", role: "core" }, { id: "bird-dog", role: "core" }] },
     ],
   },
   {
@@ -157,6 +157,7 @@ export function getDay(id: string) {
 
 export type Step =
   | { kind: "warmup"; move: WarmupMove; index: number; total: number }
+  | { kind: "prep" } // "weights you'll need" screen between warm-up and set 1
   | {
       kind: "set";
       key: string; // unique per step
@@ -196,6 +197,7 @@ const LENGTH_ADJ: Record<SessionLength, { sets: number; core: number; rest: numb
 export function buildSteps(day: Day, info: WeekInfo, length: SessionLength = 45): Step[] {
   const adj = LENGTH_ADJ[length];
   const steps: Step[] = WARMUP.map((move, i) => ({ kind: "warmup", move, index: i, total: WARMUP.length }));
+  steps.push({ kind: "prep" });
   const pi = PHASE_INDEX[info.phase.key];
 
   for (const block of day.blocks) {
@@ -262,17 +264,27 @@ export function buildSteps(day: Day, info: WeekInfo, length: SessionLength = 45)
   return steps;
 }
 
-// Rough session length: ~3s per rep (+5s setup) or the hold time, plus rest.
+export const PREP_SECONDS = 45;
+export const SWITCH_SECONDS = 5;
+
+// Prescribed time for a set. Holds use their hold time; rep sets allow
+// ~1.8s per rep plus a little setup. Per-side work runs both sides with a switch gap.
+export function workSeconds(s: Extract<Step, { kind: "set" }>, ex: Exercise) {
+  let per: number;
+  const holds = s.target.match(/(\d+) × (\d+)s/);
+  if (s.seconds != null) per = s.seconds;
+  else if (holds) per = +holds[1] * (+holds[2] + 2);
+  else per = Math.max(12, Math.round((s.repRange ? s.repRange[1] : parseInt(s.target) || 10) * 1.8 + (ex.perSide ? 3 : 6)));
+  return ex.perSide ? per * 2 + SWITCH_SECONDS : per;
+}
+
+// Session length: set timers plus rest, warm-up and the weights screen.
 export function estimateMinutes(steps: Step[]) {
   let s = 0;
   for (const st of steps) {
-    if (st.kind === "warmup") s += st.move.seconds + 5;
-    else {
-      const ex = EXERCISES[st.exerciseId];
-      const reps = st.repRange ? st.repRange[1] : parseInt(st.target) || 10;
-      const work = st.seconds ?? Math.max(20, reps * 3);
-      s += (ex.perSide ? work * 2 : work) + 5 + st.rest;
-    }
+    if (st.kind === "warmup") s += st.move.seconds;
+    else if (st.kind === "prep") s += PREP_SECONDS;
+    else s += workSeconds(st, EXERCISES[st.exerciseId]) + st.rest;
   }
   return Math.round(s / 60);
 }

@@ -3,7 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EXERCISES, canDo, resolveExercise, videoUrl, type Exercise } from "@/lib/exercises";
-import { buildSteps, estimateMinutes, getDay, weekInfo, type SessionLength, type Step } from "@/lib/program";
+import {
+  PREP_SECONDS,
+  SWITCH_SECONDS,
+  buildSteps,
+  estimateMinutes,
+  getDay,
+  weekInfo,
+  workSeconds,
+  type SessionLength,
+  type Step,
+} from "@/lib/program";
 import { fmt, suggest } from "@/lib/progression";
 import { currentWeek, lastSetsFor, saveSession, useStore, uuid, type SetLog } from "@/lib/store";
 
@@ -29,7 +39,6 @@ interface Active {
 
 const K_ACTIVE = "as.active";
 const GET_READY = 10; // seconds before a set that doesn't follow a rest
-const SWITCH = 5; // seconds to change sides on per-side work
 
 function loadActive(dayId: string): Active | null {
   try {
@@ -38,17 +47,6 @@ function loadActive(dayId: string): Active | null {
   } catch {
     return null;
   }
-}
-
-// Prescribed time for a set: holds use their hold time; rep sets allow
-// ~3s per rep plus setup. Per-side work runs both sides with a switch gap.
-function workSeconds(s: SetStep, ex: Exercise) {
-  let per: number;
-  const holds = s.target.match(/(\d+) × (\d+)s/);
-  if (s.seconds != null) per = s.seconds;
-  else if (holds) per = +holds[1] * (+holds[2] + 3);
-  else per = Math.max(20, (s.repRange ? s.repRange[1] : parseInt(s.target) || 10) * 3 + (ex.perSide ? 5 : 10));
-  return ex.perSide ? per * 2 + SWITCH : per;
 }
 
 // ---------- audio + haptics ----------
@@ -262,7 +260,7 @@ export default function Player({ dayId }: { dayId: string }) {
 
   const startWork = (i: number) => {
     const st = steps[i];
-    if (!st) return;
+    if (!st || st.kind === "prep") return;
     const secs = st.kind === "warmup" ? st.move.seconds : workSeconds(st, exFor(st));
     setPhase("work");
     timer.start(secs, "work");
@@ -285,7 +283,10 @@ export default function Player({ dayId }: { dayId: string }) {
       return;
     }
     if (st.kind === "warmup") startWork(target);
-    else if (steps[target - 1]?.kind === "set" && phase === "rest") startWork(target);
+    else if (st.kind === "prep") {
+      setPhase("ready");
+      timer.start(PREP_SECONDS, "ready");
+    } else if (steps[target - 1]?.kind === "prep" || (steps[target - 1]?.kind === "set" && phase === "rest")) startWork(target);
     else {
       setPhase("ready");
       timer.start(GET_READY, "ready");
@@ -308,7 +309,7 @@ export default function Player({ dayId }: { dayId: string }) {
   const finishWork = () => {
     timer.stop();
     if (!step) return;
-    if (step.kind === "warmup") {
+    if (step.kind === "warmup" || step.kind === "prep") {
       beep(1, 660);
       enter(idx + 1, auto);
       return;
@@ -333,7 +334,12 @@ export default function Player({ dayId }: { dayId: string }) {
   const begin = () => {
     unlockAudio();
     if (!step) return;
-    if (step.kind === "warmup" || !auto) startWork(idx);
+    if (step.kind === "prep") {
+      if (auto) {
+        setPhase("ready");
+        timer.start(PREP_SECONDS, "ready");
+      } else enter(idx + 1, false);
+    } else if (step.kind === "warmup" || !auto) startWork(idx);
     else {
       setPhase("ready");
       timer.start(GET_READY, "ready");
@@ -342,7 +348,7 @@ export default function Player({ dayId }: { dayId: string }) {
 
   const handlers = useRef<Partial<Record<Phase, () => void>>>({});
   handlers.current = {
-    ready: () => startWork(idx),
+    ready: () => (step?.kind === "prep" ? enter(idx + 1, true) : startWork(idx)),
     work: finishWork,
     rest: finishRest,
   };
@@ -355,12 +361,14 @@ export default function Player({ dayId }: { dayId: string }) {
     if (sec === lastTick.current) return;
     lastTick.current = sec;
     if ((phase === "ready" || phase === "rest") && sec >= 1 && sec <= 3) beep(1, 660, 0.08);
+    // heads-up that the current timer is about to end
+    if (sec === 10 && timer.total > 15 && (phase !== "ready" || step?.kind === "prep")) beep(2, 1250, 0.1);
     if (phase === "work" && ex?.perSide && setStep) {
-      const side = (timer.total - SWITCH) / 2;
+      const side = (timer.total - SWITCH_SECONDS) / 2;
       const el = timer.total - timer.left;
       if (Math.abs(el - side) < 0.6) beep(2, 520, 0.12);
     }
-  }, [timer.left, timer.running, timer.total, phase, ex?.perSide, setStep]);
+  }, [timer.left, timer.running, timer.total, phase, ex?.perSide, setStep, step?.kind]);
 
   if (!active || !store.loaded) return <div className="screen center muted">Loading…</div>;
 
@@ -458,7 +466,7 @@ export default function Player({ dayId }: { dayId: string }) {
 
   // ---------- warm-up ----------
   if (step.kind === "warmup") {
-    const firstSet = steps.findIndex((s) => s.kind === "set");
+    const firstSet = steps.findIndex((s) => s.kind === "prep");
     return (
       <div className="screen player">
         {header}
@@ -485,6 +493,81 @@ export default function Player({ dayId }: { dayId: string }) {
         </button>
         {idx === 0 && auto && phase === "idle" && (
           <p className="small muted center-text">Hands-free: the workout runs itself from here. Pause or skip any time.</p>
+        )}
+      </div>
+    );
+  }
+
+  // ---------- weights you'll need ----------
+  if (step.kind === "prep") {
+    const seen = new Set<string>();
+    const items: { ex: Exercise; block: string; weight: number | null }[] = [];
+    for (const st of steps) {
+      if (st.kind !== "set") continue;
+      const e = exFor(st);
+      if (!e.implements.length || seen.has(e.id)) continue;
+      seen.add(e.id);
+      const sg = suggest(e, lastSetsFor(sessions, e.id), st.repRange, settings.unit, st.deload);
+      items.push({ ex: e, block: st.block, weight: sg.weight });
+    }
+    const need = new Map<number, number>();
+    for (const it of items) if (it.weight != null) need.set(it.weight, Math.max(need.get(it.weight) ?? 0, it.ex.pair ? 2 : 1));
+    const grab = [...need].sort((a, b) => b[0] - a[0]);
+    const unknown = items.some((it) => it.weight == null);
+    const leave = () => enter(idx + 1, auto && phase !== "idle");
+
+    return (
+      <div className="screen player">
+        {header}
+        <div className="row-between">
+          <div className="chip">Set up</div>
+          {phase === "ready" && <div className={`small ${timer.paused ? "muted" : "accent"}`}>Starting in {clock(timer.left)}</div>}
+        </div>
+        <h1 className="ex-name">Weights you&apos;ll need</h1>
+        {grab.length > 0 && (
+          <div className="card">
+            <div className="small muted">Grab these now</div>
+            <div className="grab">
+              {grab.map(([w, n]) => (
+                <span key={w} className="grab-chip">
+                  {fmt(w)} {settings.unit}
+                  {n > 1 ? <b> ×{n}</b> : null}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="card tight">
+          {items.map((it) => (
+            <div key={it.ex.id} className="weight-row">
+              <span className="block-label sm">{it.block}</span>
+              <span className="grow">{it.ex.name}</span>
+              <b className={it.weight == null ? "muted" : ""}>
+                {it.weight == null ? "pick" : `${it.ex.pair ? "2 × " : ""}${fmt(it.weight)} ${settings.unit}`}
+              </b>
+            </div>
+          ))}
+        </div>
+        <p className="small muted">
+          {unknown
+            ? "\"pick\" = no history yet: choose a weight you could lift ~3 more reps than the target."
+            : "Based on your last workouts, including any weight increases you've earned."}
+        </p>
+        <div className="control-row">
+          {phase === "ready" && pauseBtn}
+          <button className="btn primary grow" onClick={leave}>
+            I&apos;m ready ›
+          </button>
+          {phase === "ready" && (
+            <button className="btn ghost" onClick={() => timer.add(15)}>
+              +15s
+            </button>
+          )}
+        </div>
+        {phase === "idle" && auto && (
+          <button className="btn ghost block" onClick={begin}>
+            ▶ Resume countdown
+          </button>
         )}
       </div>
     );
@@ -570,9 +653,9 @@ export default function Player({ dayId }: { dayId: string }) {
 
   let sideLabel = "";
   if (phase === "work" && exercise.perSide) {
-    const side = (timer.total - SWITCH) / 2;
+    const side = (timer.total - SWITCH_SECONDS) / 2;
     const el = timer.total - timer.left;
-    sideLabel = el < side ? "Side 1" : el < side + SWITCH ? "Switch sides!" : "Side 2";
+    sideLabel = el < side ? "Side 1" : el < side + SWITCH_SECONDS ? "Switch sides!" : "Side 2";
   }
 
   const ringText =

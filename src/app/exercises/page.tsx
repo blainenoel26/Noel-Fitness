@@ -8,7 +8,7 @@ const GEAR_LABEL = { db: "Dumbbell", kb: "Kettlebell" } as const;
 export default function ExercisesPage() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  const list = Object.values(EXERCISES).filter((e) =>
+  const list = Object.values(EXERCISES).filter((e) => !e.hidden &&
     `${e.name} ${e.muscles} ${e.pattern}`.toLowerCase().includes(q.toLowerCase()),
   );
 

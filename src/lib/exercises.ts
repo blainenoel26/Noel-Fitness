@@ -14,6 +14,8 @@ export interface Exercise {
   needs?: Gear[];
   muscles: string;
   pattern: string;
+  pair?: boolean; // uses two dumbbells/kettlebells at the logged weight
+  hidden?: boolean; // retired from the program and library
   mode: Mode;
   perSide?: boolean;
   cues: string[];
@@ -45,6 +47,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-front-squat": {
     id: "db-front-squat",
+    pair: true,
     name: "Dumbbell Front Squat",
     implements: ["db"],
     muscles: "Quads, glutes, core",
@@ -60,6 +63,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-reverse-lunge": {
     id: "db-reverse-lunge",
+    pair: true,
     name: "Dumbbell Reverse Lunge",
     implements: ["db", "kb"],
     muscles: "Quads, glutes, hamstrings",
@@ -77,6 +81,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-split-squat": {
     id: "db-split-squat",
+    pair: true,
     name: "Dumbbell Split Squat",
     implements: ["db", "kb"],
     muscles: "Quads, glutes",
@@ -93,6 +98,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "bulgarian-split-squat": {
     id: "bulgarian-split-squat",
+    pair: true,
     name: "Bulgarian Split Squat",
     implements: ["db", "kb"],
     needs: ["bench"],
@@ -111,6 +117,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-step-up": {
     id: "db-step-up",
+    pair: true,
     name: "Dumbbell Step-Up",
     implements: ["db", "kb"],
     needs: ["box"],
@@ -145,6 +152,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-rdl": {
     id: "db-rdl",
+    pair: true,
     name: "Dumbbell Romanian Deadlift",
     implements: ["db", "kb"],
     muscles: "Hamstrings, glutes, spinal erectors",
@@ -245,6 +253,7 @@ export const EXERCISES: Record<string, Exercise> = {
   // ---------- Push ----------
   "db-bench-press": {
     id: "db-bench-press",
+    pair: true,
     name: "Dumbbell Bench Press",
     implements: ["db"],
     needs: ["bench"],
@@ -261,6 +270,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-floor-press": {
     id: "db-floor-press",
+    pair: true,
     name: "Dumbbell Floor Press",
     implements: ["db", "kb"],
     muscles: "Chest, triceps, front delts",
@@ -309,6 +319,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-overhead-press": {
     id: "db-overhead-press",
+    pair: true,
     name: "Standing Dumbbell Overhead Press",
     implements: ["db", "kb"],
     muscles: "Shoulders, triceps, upper chest",
@@ -341,6 +352,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-chest-fly": {
     id: "db-chest-fly",
+    pair: true,
     name: "Dumbbell Chest Fly",
     implements: ["db"],
     muscles: "Chest",
@@ -357,6 +369,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-lateral-raise": {
     id: "db-lateral-raise",
+    pair: true,
     name: "Dumbbell Lateral Raise",
     implements: ["db"],
     muscles: "Side delts",
@@ -387,6 +400,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-skull-crusher": {
     id: "db-skull-crusher",
+    pair: true,
     name: "Dumbbell Skull Crusher",
     implements: ["db"],
     muscles: "Triceps",
@@ -421,6 +435,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "kb-gorilla-row": {
     id: "kb-gorilla-row",
+    pair: true,
     name: "Gorilla Row",
     implements: ["kb", "db"],
     muscles: "Lats, mid-back, core",
@@ -437,6 +452,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-bent-over-row": {
     id: "db-bent-over-row",
+    pair: true,
     name: "Dumbbell Bent-Over Row",
     implements: ["db", "kb"],
     muscles: "Lats, mid-back, rear delts",
@@ -467,6 +483,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-rear-delt-fly": {
     id: "db-rear-delt-fly",
+    pair: true,
     name: "Rear Delt Fly",
     implements: ["db"],
     muscles: "Rear delts, rhomboids",
@@ -482,6 +499,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-hammer-curl": {
     id: "db-hammer-curl",
+    pair: true,
     name: "Hammer Curl",
     implements: ["db", "kb"],
     muscles: "Biceps, brachialis, forearms",
@@ -497,6 +515,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "db-biceps-curl": {
     id: "db-biceps-curl",
+    pair: true,
     name: "Dumbbell Biceps Curl",
     implements: ["db", "kb"],
     muscles: "Biceps",
@@ -580,7 +599,26 @@ export const EXERCISES: Record<string, Exercise> = {
     swaps: ["dead-bug"],
     fixedTarget: ["5", "6", "8"],
   },
+  "kb-plank-pull-through": {
+    id: "kb-plank-pull-through",
+    name: "Plank Pull-Through",
+    implements: ["kb", "db"],
+    muscles: "Abs, obliques, shoulders (anti-rotation)",
+    pattern: "Core (loaded)",
+    mode: "reps",
+    perSide: true,
+    cues: [
+      "High plank, feet wide, bell just outside one hand",
+      "Reach under your body and drag the bell to the other side",
+      "Hips stay level and still — no rocking",
+      "Alternate hands each rep",
+    ],
+    avoid: "Hips rotating or piking up",
+    swaps: ["plank-shoulder-tap"],
+    fixedTarget: ["6", "8", "10"],
+  },
   "turkish-get-up": {
+    hidden: true,
     id: "turkish-get-up",
     name: "Turkish Get-Up",
     implements: ["kb", "db"],
@@ -617,6 +655,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "farmer-carry": {
     id: "farmer-carry",
+    pair: true,
     name: "Farmer Carry",
     implements: ["db", "kb"],
     muscles: "Grip, traps, core, total body",
@@ -728,7 +767,6 @@ export const WARMUP: WarmupMove[] = [
   { name: "World's greatest stretch", seconds: 45, cue: "Lunge, elbow to instep, rotate the arm up. Alternate sides" },
   { name: "Bodyweight squat + pry", seconds: 40, cue: "Sit deep, push knees out with elbows, rock gently" },
   { name: "Hip hinge drill", seconds: 40, cue: "Hands on hips, push them back, flat back, stand tall" },
-  { name: "Ramp-up set", seconds: 40, cue: "One light set of your first exercise at ~50% weight" },
 ];
 
 export function videoUrl(ex: Exercise) {

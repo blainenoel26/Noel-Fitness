@@ -203,3 +203,11 @@ p { margin: 6px 0; }
 .stats div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 6px; display: flex; flex-direction: column; }
 .stats b { font-size: 24px; }
 .stats span { font-size: 12px; color: var(--muted); }
+
+/* Weights screen */
+.grab { display: flex; flex-wrap: wrap; gap: 8px; }
+.grab-chip { padding: 8px 14px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--line); font-size: 18px; font-weight: 600; }
+.grab-chip b { color: var(--accent-2); }
+.weight-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.weight-row:first-child { border-top: 0; }
+.block-label.sm { width: 32px; height: 26px; font-size: 13px; }
