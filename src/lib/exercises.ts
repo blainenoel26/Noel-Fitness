@@ -4,7 +4,7 @@
 
 export type Implement = "db" | "kb";
 export type Gear = "bench" | "box";
-export type Role = "primary" | "secondary" | "isolation" | "power" | "core";
+export type Role = "primary" | "secondary" | "isolation" | "power" | "core" | "conditioning";
 export type Mode = "reps" | "time";
 
 export interface Exercise {
@@ -350,6 +350,22 @@ export const EXERCISES: Record<string, Exercise> = {
     avoid: "Swinging the bell wide and banging the forearm",
     swaps: ["db-overhead-press"],
   },
+  "db-arnold-press": {
+    id: "db-arnold-press",
+    pair: true,
+    name: "Dumbbell Arnold Press",
+    implements: ["db"],
+    muscles: "Front & side delts, triceps",
+    pattern: "Vertical push",
+    mode: "reps",
+    cues: [
+      "Seated or standing, dumbbells at chin height, palms facing you",
+      "Rotate palms forward as you press overhead",
+      "Reverse the rotation on the way down",
+    ],
+    avoid: "Arching the lower back to finish the press",
+    swaps: ["db-overhead-press"],
+  },
   "db-chest-fly": {
     id: "db-chest-fly",
     pair: true,
@@ -497,6 +513,38 @@ export const EXERCISES: Record<string, Exercise> = {
     avoid: "Shrugging into your neck",
     swaps: ["db-bent-over-row"],
   },
+  "db-shrug": {
+    id: "db-shrug",
+    pair: true,
+    name: "Dumbbell Shrug",
+    implements: ["db", "kb"],
+    muscles: "Upper traps",
+    pattern: "Isolation",
+    mode: "reps",
+    cues: [
+      "Heavy dumbbells at your sides, arms long",
+      "Shrug straight up toward your ears",
+      "Pause 1 second at the top, lower slowly",
+    ],
+    avoid: "Rolling the shoulders or bending the elbows",
+    swaps: ["farmer-carry"],
+  },
+  "db-zottman-curl": {
+    id: "db-zottman-curl",
+    pair: true,
+    name: "Zottman Curl",
+    implements: ["db"],
+    muscles: "Biceps, brachioradialis, forearms",
+    pattern: "Isolation",
+    mode: "reps",
+    cues: [
+      "Curl up with palms facing up",
+      "At the top, rotate palms to face down",
+      "Lower slowly (3 seconds) palms down, rotate back at the bottom",
+    ],
+    avoid: "Swinging the weight up",
+    swaps: ["db-hammer-curl"],
+  },
   "db-hammer-curl": {
     id: "db-hammer-curl",
     pair: true,
@@ -528,6 +576,71 @@ export const EXERCISES: Record<string, Exercise> = {
     ],
     avoid: "Elbows drifting forward",
     swaps: ["db-hammer-curl"],
+  },
+
+  // ---------- Conditioning (finisher intervals) ----------
+  "db-thruster": {
+    id: "db-thruster",
+    pair: true,
+    name: "Dumbbell Thruster",
+    implements: ["db", "kb"],
+    muscles: "Full body — quads, glutes, shoulders",
+    pattern: "Conditioning",
+    mode: "time",
+    cues: [
+      "Dumbbells at your shoulders, squat to depth",
+      "Drive up hard and use that momentum to press overhead",
+      "Lower to the shoulders as you sit into the next squat",
+      "Moderate weight — keep moving the whole interval",
+    ],
+    avoid: "Pressing with a soft, arched lower back",
+    swaps: ["burpee"],
+  },
+  "mountain-climber": {
+    id: "mountain-climber",
+    name: "Mountain Climbers",
+    implements: [],
+    muscles: "Core, hip flexors, shoulders — cardio",
+    pattern: "Conditioning",
+    mode: "time",
+    cues: [
+      "High plank, hands under shoulders",
+      "Drive knees to chest one at a time, fast",
+      "Keep hips level with your shoulders",
+    ],
+    avoid: "Hips piking up toward the ceiling",
+    swaps: ["burpee"],
+  },
+  burpee: {
+    id: "burpee",
+    name: "Burpee",
+    implements: [],
+    muscles: "Full body — cardio",
+    pattern: "Conditioning",
+    mode: "time",
+    cues: [
+      "Squat, hands down, jump or step feet back to a plank",
+      "Chest to the floor (or skip the push-up)",
+      "Feet back in, stand and jump with arms overhead",
+      "Low-impact: step back and forward instead of jumping",
+    ],
+    avoid: "Sagging hips in the plank",
+    swaps: ["mountain-climber"],
+  },
+  "kb-high-pull": {
+    id: "kb-high-pull",
+    name: "Kettlebell High Pull",
+    implements: ["kb", "db"],
+    muscles: "Glutes, hamstrings, upper back, traps",
+    pattern: "Conditioning",
+    mode: "time",
+    cues: [
+      "Two hands on the bell, hike it back like a swing",
+      "Snap the hips, then pull the bell to chest height, elbows high",
+      "Let it swing back down and repeat",
+    ],
+    avoid: "Pulling with the arms before the hips snap",
+    swaps: ["kb-swing"],
   },
 
   // ---------- Core ----------

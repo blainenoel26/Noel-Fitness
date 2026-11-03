@@ -18,7 +18,7 @@ export interface Phase {
   weeks: string;
   goal: string;
   coreRounds: number;
-  roles: Record<Exclude<Role, "core">, RoleScheme>;
+  roles: Record<Exclude<Role, "core" | "conditioning">, RoleScheme>;
 }
 
 export const PHASES: Record<PhaseKey, Phase> = {
@@ -29,10 +29,10 @@ export const PHASES: Record<PhaseKey, Phase> = {
     goal: "Learn the movements, build work capacity and connective-tissue tolerance. Leave 3 reps in the tank.",
     coreRounds: 2,
     roles: {
-      primary: { sets: 3, reps: [10, 12], rir: "3", rest: 75 },
-      secondary: { sets: 3, reps: [10, 12], rir: "3", rest: 60 },
-      isolation: { sets: 2, reps: [12, 15], rir: "2", rest: 45 },
-      power: { sets: 4, reps: [12, 12], rir: "—", rest: 60 },
+      primary: { sets: 3, reps: [10, 12], rir: "3", rest: 60 },
+      secondary: { sets: 3, reps: [10, 12], rir: "3", rest: 45 },
+      isolation: { sets: 2, reps: [12, 15], rir: "2", rest: 30 },
+      power: { sets: 4, reps: [12, 12], rir: "—", rest: 45 },
     },
   },
   build: {
@@ -42,10 +42,10 @@ export const PHASES: Record<PhaseKey, Phase> = {
     goal: "More sets, moderate reps — the hypertrophy sweet spot. Push to 1–2 reps shy of failure.",
     coreRounds: 2,
     roles: {
-      primary: { sets: 4, reps: [8, 10], rir: "2", rest: 75 },
-      secondary: { sets: 3, reps: [8, 12], rir: "2", rest: 60 },
-      isolation: { sets: 3, reps: [10, 15], rir: "1–2", rest: 45 },
-      power: { sets: 5, reps: [15, 15], rir: "—", rest: 60 },
+      primary: { sets: 4, reps: [8, 10], rir: "2", rest: 60 },
+      secondary: { sets: 3, reps: [8, 12], rir: "2", rest: 45 },
+      isolation: { sets: 3, reps: [10, 15], rir: "1–2", rest: 30 },
+      power: { sets: 5, reps: [15, 15], rir: "—", rest: 45 },
     },
   },
   strength: {
@@ -55,10 +55,10 @@ export const PHASES: Record<PhaseKey, Phase> = {
     goal: "Heavier loads, lower reps, longer rest. Convert new muscle into strength.",
     coreRounds: 2,
     roles: {
-      primary: { sets: 4, reps: [5, 8], rir: "1–2", rest: 90 },
-      secondary: { sets: 3, reps: [6, 10], rir: "2", rest: 75 },
-      isolation: { sets: 3, reps: [8, 12], rir: "1", rest: 45 },
-      power: { sets: 5, reps: [10, 10], rir: "—", rest: 60 },
+      primary: { sets: 4, reps: [5, 8], rir: "1–2", rest: 75 },
+      secondary: { sets: 3, reps: [6, 10], rir: "2", rest: 60 },
+      isolation: { sets: 3, reps: [8, 12], rir: "1", rest: 30 },
+      power: { sets: 5, reps: [10, 10], rir: "—", rest: 45 },
     },
   },
 };
@@ -85,9 +85,10 @@ interface BlockItem {
 }
 
 interface Block {
-  label: string; // "A", "B"…
+  label: string; // "A", "B"… (relabelled in order of the blocks actually included)
   title: string;
   items: BlockItem[]; // 1 = straight sets, 2 = superset, 3+ = circuit
+  minLength?: SessionLength; // only included in sessions at least this long
 }
 
 export interface Day {
@@ -108,7 +109,9 @@ export const DAYS: Day[] = [
       { label: "A", title: "Strength superset", items: [{ id: "goblet-squat", role: "primary" }, { id: "one-arm-db-row", role: "primary" }] },
       { label: "B", title: "Strength superset", items: [{ id: "db-reverse-lunge", role: "secondary" }, { id: "db-bench-press", role: "secondary" }] },
       { label: "C", title: "Isolation superset", items: [{ id: "db-lateral-raise", role: "isolation" }, { id: "db-hammer-curl", role: "isolation" }] },
-      { label: "D", title: "Core circuit (McGill)", items: [{ id: "dead-bug", role: "core" }, { id: "side-plank", role: "core" }, { id: "mcgill-curl-up", role: "core" }] },
+      { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "single-leg-calf-raise", role: "isolation" }, { id: "db-overhead-triceps", role: "isolation" }] },
+      { label: "E", title: "Core circuit (McGill)", items: [{ id: "dead-bug", role: "core" }, { id: "side-plank", role: "core" }, { id: "mcgill-curl-up", role: "core" }] },
+      { label: "F", title: "Conditioning finisher", items: [{ id: "kb-swing", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }, { id: "db-thruster", role: "conditioning" }] },
     ],
   },
   {
@@ -120,7 +123,9 @@ export const DAYS: Day[] = [
       { label: "A", title: "Power superset", items: [{ id: "kb-swing", role: "power" }, { id: "half-kneeling-kb-press", role: "primary" }] },
       { label: "B", title: "Strength superset", items: [{ id: "db-rdl", role: "primary" }, { id: "kb-gorilla-row", role: "secondary" }] },
       { label: "C", title: "Isolation superset", items: [{ id: "single-leg-calf-raise", role: "isolation" }, { id: "db-overhead-triceps", role: "isolation" }] },
-      { label: "D", title: "Loaded core circuit", items: [{ id: "kb-plank-pull-through", role: "core" }, { id: "suitcase-carry", role: "core" }, { id: "bird-dog", role: "core" }] },
+      { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "db-lateral-raise", role: "isolation" }, { id: "db-biceps-curl", role: "isolation" }] },
+      { label: "E", title: "Loaded core circuit", items: [{ id: "kb-plank-pull-through", role: "core" }, { id: "suitcase-carry", role: "core" }, { id: "bird-dog", role: "core" }] },
+      { label: "F", title: "Conditioning finisher", items: [{ id: "burpee", role: "conditioning" }, { id: "kb-high-pull", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }] },
     ],
   },
   {
@@ -132,7 +137,9 @@ export const DAYS: Day[] = [
       { label: "A", title: "Strength superset", items: [{ id: "bulgarian-split-squat", role: "primary" }, { id: "db-bent-over-row", role: "primary" }] },
       { label: "B", title: "Strength superset", items: [{ id: "db-hip-thrust", role: "secondary" }, { id: "push-up", role: "secondary" }] },
       { label: "C", title: "Isolation superset", items: [{ id: "db-rear-delt-fly", role: "isolation" }, { id: "db-biceps-curl", role: "isolation" }] },
-      { label: "D", title: "Core circuit", items: [{ id: "hollow-hold", role: "core" }, { id: "plank-shoulder-tap", role: "core" }, { id: "kb-windmill", role: "core" }] },
+      { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "goblet-lateral-lunge", role: "secondary" }, { id: "db-shrug", role: "isolation" }] },
+      { label: "E", title: "Core circuit", items: [{ id: "hollow-hold", role: "core" }, { id: "plank-shoulder-tap", role: "core" }, { id: "kb-windmill", role: "core" }] },
+      { label: "F", title: "Conditioning finisher", items: [{ id: "db-thruster", role: "conditioning" }, { id: "burpee", role: "conditioning" }, { id: "kb-swing", role: "conditioning" }] },
     ],
   },
   {
@@ -144,7 +151,9 @@ export const DAYS: Day[] = [
       { label: "A", title: "Power superset", items: [{ id: "kb-clean-press", role: "primary" }, { id: "db-step-up", role: "primary" }] },
       { label: "B", title: "Strength superset", items: [{ id: "kb-single-leg-rdl", role: "secondary" }, { id: "db-pullover", role: "secondary" }] },
       { label: "C", title: "Isolation superset", items: [{ id: "db-chest-fly", role: "isolation" }, { id: "db-skull-crusher", role: "isolation" }] },
-      { label: "D", title: "Core + carry circuit", items: [{ id: "farmer-carry", role: "core" }, { id: "reverse-crunch", role: "core" }, { id: "kb-halo", role: "core" }] },
+      { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "db-arnold-press", role: "secondary" }, { id: "db-zottman-curl", role: "isolation" }] },
+      { label: "E", title: "Core + carry circuit", items: [{ id: "farmer-carry", role: "core" }, { id: "reverse-crunch", role: "core" }, { id: "kb-halo", role: "core" }] },
+      { label: "F", title: "Conditioning finisher", items: [{ id: "kb-high-pull", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }, { id: "burpee", role: "conditioning" }] },
     ],
   },
 ];
@@ -178,20 +187,25 @@ export type Step =
 const PHASE_INDEX: Record<PhaseKey, 0 | 1 | 2> = { foundation: 0, build: 1, strength: 2 };
 const TRANSITION_REST = 15; // between exercises inside a superset (weights are within reach)
 const CORE_TRANSITION = 10;
-const CORE_ROUND_REST = 30;
+const CORE_ROUND_REST = 20;
+// Conditioning finisher: hard intervals to keep heart rate up.
+const FINISHER_WORK = 30;
+const FINISHER_TRANSITION = 15;
+const FINISHER_ROUND_REST = 30;
 
-// Session length options. 45 is the standard program; 30 trims a set per
-// exercise, 60 adds one plus an extra core round and longer rests.
+// Session length options. 45 is the standard program plus an accessory
+// superset; 30 drops the accessories and trims isolation sets; 60 adds sets,
+// an extra core round and longer rests.
 export type SessionLength = 30 | 45 | 60;
 export const LENGTHS: { value: SessionLength; label: string; hint: string }[] = [
-  { value: 30, label: "30 min", hint: "Express — one fewer set per exercise" },
-  { value: 45, label: "45 min", hint: "Standard program" },
-  { value: 60, label: "60 min", hint: "Extended — extra set, extra core round, longer rest" },
+  { value: 30, label: "30 min", hint: "Express — main lifts, core and a short finisher" },
+  { value: 45, label: "45 min", hint: "Standard — adds an accessory superset and 3 finisher rounds" },
+  { value: 60, label: "60 min", hint: "Extended — extra sets, extra core round, 4 finisher rounds" },
 ];
-const LENGTH_ADJ: Record<SessionLength, { sets: number; core: number; rest: number }> = {
-  30: { sets: -1, core: 0, rest: -15 },
-  45: { sets: 0, core: 0, rest: 0 },
-  60: { sets: 1, core: 1, rest: 15 },
+const LENGTH_ADJ: Record<SessionLength, { sets: Partial<Record<Role, number>>; core: number; finisher: number; rest: number }> = {
+  30: { sets: { primary: 0, secondary: -1, isolation: -1, power: -1 }, core: 0, finisher: 2, rest: -10 },
+  45: { sets: { primary: 0, secondary: 0, isolation: 0, power: 0 }, core: 0, finisher: 3, rest: -10 },
+  60: { sets: { primary: 1, secondary: 1, isolation: 0, power: 1 }, core: 1, finisher: 4, rest: 0 },
 };
 
 export function buildSteps(day: Day, info: WeekInfo, length: SessionLength = 45): Step[] {
@@ -200,10 +214,19 @@ export function buildSteps(day: Day, info: WeekInfo, length: SessionLength = 45)
   steps.push({ kind: "prep" });
   const pi = PHASE_INDEX[info.phase.key];
 
-  for (const block of day.blocks) {
-    const isCore = block.items.every((i) => i.role === "core");
+  const blocks = day.blocks
+    .filter((b) => !b.minLength || length >= b.minLength)
+    .map((b, i) => ({ ...b, label: "ABCDEFGH"[i] }));
+
+  for (const block of blocks) {
+    const isCircuit = block.items.every((i) => i.role === "core" || i.role === "conditioning");
     const roundsFor = (role: Role) => {
-      let n = role === "core" ? info.phase.coreRounds + adj.core : Math.max(2, info.phase.roles[role].sets + adj.sets);
+      let n =
+        role === "core"
+          ? info.phase.coreRounds + adj.core
+          : role === "conditioning"
+            ? adj.finisher
+            : Math.max(2, info.phase.roles[role].sets + (adj.sets[role] ?? 0));
       if (info.deload) n = Math.max(1, Math.ceil(n / 2));
       return n;
     };
@@ -222,7 +245,11 @@ export function buildSteps(day: Day, info: WeekInfo, length: SessionLength = 45)
         let rir = "—";
         let rest: number;
 
-        if (item.role === "core") {
+        if (item.role === "conditioning") {
+          seconds = FINISHER_WORK;
+          target = `${seconds}s — hard pace`;
+          rest = last ? FINISHER_ROUND_REST : FINISHER_TRANSITION;
+        } else if (item.role === "core") {
           if (ex.mode === "time" && ex.seconds) {
             seconds = ex.seconds[pi];
             target = `${seconds}s${side}`;
@@ -239,14 +266,14 @@ export function buildSteps(day: Day, info: WeekInfo, length: SessionLength = 45)
             repRange = scheme.reps;
             target = (scheme.reps[0] === scheme.reps[1] ? `${scheme.reps[0]}` : `${scheme.reps[0]}–${scheme.reps[1]}`) + ` reps${side}`;
           }
-          rest = last || block.items.length === 1 ? (info.deload ? 60 : Math.max(45, scheme.rest + adj.rest)) : TRANSITION_REST;
+          rest = last || block.items.length === 1 ? (info.deload ? 60 : Math.max(30, scheme.rest + adj.rest)) : TRANSITION_REST;
         }
 
         steps.push({
           kind: "set",
           key: `${block.label}${idx + 1}-${r}`,
           block: `${block.label}${block.items.length > 1 ? idx + 1 : ""}`,
-          blockTitle: isCore ? `${block.title} — round ${r}/${rounds}` : block.title,
+          blockTitle: isCircuit ? `${block.title} — round ${r}/${rounds}` : block.title,
           exerciseId: item.id,
           role: item.role,
           set: r,
@@ -308,7 +335,11 @@ export const PRINCIPLES = [
   },
   {
     title: "Supersets save time",
-    body: "Pairing non-competing exercises (e.g. squat + row) keeps total volume while cutting session time — that's how full-body work fits into 30–45 minutes.",
+    body: "Pairing non-competing exercises (e.g. squat + row) keeps total volume while cutting session time — that's how full-body work fits into 30–60 minutes. Short rests between rounds also keep your heart rate elevated.",
+  },
+  {
+    title: "Finish with conditioning",
+    body: "Every session ends with hard 30-second intervals (swings, thrusters, burpees, mountain climbers, high pulls). Short, intense intervals improve cardiovascular fitness and keep heart rate up without eating into strength work.",
   },
   {
     title: "Spine-sparing core",

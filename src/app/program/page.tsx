@@ -48,6 +48,11 @@ export default function ProgramPage() {
                 <td>{p.coreRounds} rounds</td>
                 <td colSpan={3}>circuit</td>
               </tr>
+              <tr>
+                <td>Finisher</td>
+                <td>2–4 rounds</td>
+                <td colSpan={3}>30s hard / 15s off</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -72,7 +77,10 @@ export default function ProgramPage() {
             <div key={b.label} className="block-row">
               <span className="block-label">{b.label}</span>
               <div>
-                <div className="small muted">{b.title}</div>
+                <div className="small muted">
+                  {b.title}
+                  {b.minLength ? ` · ${b.minLength}+ min sessions` : ""}
+                </div>
                 {b.items.map((i, n) => (
                   <div key={i.id}>
                     {b.items.length > 1 ? `${b.label}${n + 1}. ` : ""}
@@ -82,7 +90,7 @@ export default function ProgramPage() {
               </div>
             </div>
           ))}
-          <div className="small muted">+ 5-minute guided warm-up</div>
+          <div className="small muted">+ 3.5-minute guided warm-up and a weights check</div>
         </div>
       ))}
 

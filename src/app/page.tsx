@@ -30,7 +30,9 @@ export default function Today() {
   const traveling = !eq.bench && !eq.box;
 
   const exercisesFor = (dayId: string) =>
-    DAYS.find((d) => d.id === dayId)!.blocks.flatMap((b) => b.items.map((i) => resolveExercise(i.id, eq).name));
+    DAYS.find((d) => d.id === dayId)!
+      .blocks.filter((b) => !b.minLength || settings.length >= b.minLength)
+      .flatMap((b) => b.items.map((i) => resolveExercise(i.id, eq).name));
 
   return (
     <div className="screen">
