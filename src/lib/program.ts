@@ -111,7 +111,6 @@ export const DAYS: Day[] = [
       { label: "C", title: "Isolation superset", items: [{ id: "db-lateral-raise", role: "isolation" }, { id: "db-hammer-curl", role: "isolation" }] },
       { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "single-leg-calf-raise", role: "isolation" }, { id: "db-overhead-triceps", role: "isolation" }] },
       { label: "E", title: "Core circuit (McGill)", items: [{ id: "dead-bug", role: "core" }, { id: "side-plank", role: "core" }, { id: "mcgill-curl-up", role: "core" }] },
-      { label: "F", title: "Conditioning finisher", items: [{ id: "kb-swing", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }, { id: "db-thruster", role: "conditioning" }] },
     ],
   },
   {
@@ -139,7 +138,6 @@ export const DAYS: Day[] = [
       { label: "C", title: "Isolation superset", items: [{ id: "db-rear-delt-fly", role: "isolation" }, { id: "db-biceps-curl", role: "isolation" }] },
       { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "goblet-lateral-lunge", role: "secondary" }, { id: "db-shrug", role: "isolation" }] },
       { label: "E", title: "Core circuit", items: [{ id: "hollow-hold", role: "core" }, { id: "plank-shoulder-tap", role: "core" }, { id: "side-plank", role: "core" }] },
-      { label: "F", title: "Conditioning finisher", items: [{ id: "db-thruster", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }, { id: "kb-swing", role: "conditioning" }] },
     ],
   },
   {
@@ -198,14 +196,14 @@ const FINISHER_ROUND_REST = 30;
 // an extra core round and longer rests.
 export type SessionLength = 30 | 45 | 60;
 export const LENGTHS: { value: SessionLength; label: string; hint: string }[] = [
-  { value: 30, label: "30 min", hint: "Express — main lifts, core and a short finisher" },
-  { value: 45, label: "45 min", hint: "Standard — adds an accessory superset and 3 finisher rounds" },
-  { value: 60, label: "60 min", hint: "Extended — extra sets, extra core round, 4 finisher rounds" },
+  { value: 30, label: "30 min", hint: "Express — main lifts and core, 1 finisher round on kettlebell days" },
+  { value: 45, label: "45 min", hint: "Standard — extra set on main lifts, accessory superset, 2 finisher rounds" },
+  { value: 60, label: "60 min", hint: "Extended — 2 extra sets on main lifts, extra core round, 2 finisher rounds" },
 ];
 const LENGTH_ADJ: Record<SessionLength, { sets: Partial<Record<Role, number>>; core: number; finisher: number; rest: number }> = {
-  30: { sets: { primary: 0, secondary: -1, isolation: -1, power: -1 }, core: 0, finisher: 2, rest: -10 },
-  45: { sets: { primary: 0, secondary: 0, isolation: 0, power: 0 }, core: 0, finisher: 3, rest: -10 },
-  60: { sets: { primary: 1, secondary: 1, isolation: 0, power: 1 }, core: 1, finisher: 4, rest: 0 },
+  30: { sets: { primary: 0, secondary: 0, isolation: -1, power: -1 }, core: 0, finisher: 1, rest: -10 },
+  45: { sets: { primary: 1, secondary: 1, isolation: 0, power: 0 }, core: 0, finisher: 2, rest: -10 },
+  60: { sets: { primary: 2, secondary: 1, isolation: 1, power: 1 }, core: 1, finisher: 2, rest: 0 },
 };
 
 export function buildSteps(day: Day, info: WeekInfo, length: SessionLength = 45): Step[] {
@@ -362,7 +360,7 @@ export const PRINCIPLES = [
   },
   {
     title: "Finish with conditioning",
-    body: "Every session ends with hard 30-second intervals (swings, thrusters, snatches, mountain climbers, high pulls). Short, intense intervals improve cardiovascular fitness and keep heart rate up without eating into strength work.",
+    body: "The kettlebell days (2 and 4) end with hard 30-second intervals (swings, thrusters, snatches, mountain climbers, high pulls). Short, intense intervals improve cardiovascular fitness and keep heart rate up without eating into strength work.",
   },
   {
     title: "Spine-sparing core",

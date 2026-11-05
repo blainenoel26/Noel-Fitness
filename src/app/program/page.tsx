@@ -50,8 +50,8 @@ export default function ProgramPage() {
               </tr>
               <tr>
                 <td>Finisher</td>
-                <td>2–4 rounds</td>
-                <td colSpan={3}>30s hard / 15s off</td>
+                <td>1–2 rounds</td>
+                <td colSpan={3}>Days 2 &amp; 4 · 30s hard / 15s off</td>
               </tr>
             </tbody>
           </table>
