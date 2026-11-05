@@ -125,7 +125,7 @@ export const DAYS: Day[] = [
       { label: "C", title: "Isolation superset", items: [{ id: "single-leg-calf-raise", role: "isolation" }, { id: "db-overhead-triceps", role: "isolation" }] },
       { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "db-lateral-raise", role: "isolation" }, { id: "db-biceps-curl", role: "isolation" }] },
       { label: "E", title: "Loaded core circuit", items: [{ id: "kb-plank-pull-through", role: "core" }, { id: "suitcase-carry", role: "core" }, { id: "bird-dog", role: "core" }] },
-      { label: "F", title: "Conditioning finisher", items: [{ id: "burpee", role: "conditioning" }, { id: "kb-high-pull", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }] },
+      { label: "F", title: "Conditioning finisher", items: [{ id: "db-thruster", role: "conditioning" }, { id: "kb-high-pull", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }] },
     ],
   },
   {
@@ -138,8 +138,8 @@ export const DAYS: Day[] = [
       { label: "B", title: "Strength superset", items: [{ id: "db-hip-thrust", role: "secondary" }, { id: "push-up", role: "secondary" }] },
       { label: "C", title: "Isolation superset", items: [{ id: "db-rear-delt-fly", role: "isolation" }, { id: "db-biceps-curl", role: "isolation" }] },
       { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "goblet-lateral-lunge", role: "secondary" }, { id: "db-shrug", role: "isolation" }] },
-      { label: "E", title: "Core circuit", items: [{ id: "hollow-hold", role: "core" }, { id: "plank-shoulder-tap", role: "core" }, { id: "kb-windmill", role: "core" }] },
-      { label: "F", title: "Conditioning finisher", items: [{ id: "db-thruster", role: "conditioning" }, { id: "burpee", role: "conditioning" }, { id: "kb-swing", role: "conditioning" }] },
+      { label: "E", title: "Core circuit", items: [{ id: "hollow-hold", role: "core" }, { id: "plank-shoulder-tap", role: "core" }, { id: "side-plank", role: "core" }] },
+      { label: "F", title: "Conditioning finisher", items: [{ id: "db-thruster", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }, { id: "kb-swing", role: "conditioning" }] },
     ],
   },
   {
@@ -153,7 +153,7 @@ export const DAYS: Day[] = [
       { label: "C", title: "Isolation superset", items: [{ id: "db-chest-fly", role: "isolation" }, { id: "db-skull-crusher", role: "isolation" }] },
       { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "db-arnold-press", role: "secondary" }, { id: "db-zottman-curl", role: "isolation" }] },
       { label: "E", title: "Core + carry circuit", items: [{ id: "farmer-carry", role: "core" }, { id: "reverse-crunch", role: "core" }, { id: "kb-halo", role: "core" }] },
-      { label: "F", title: "Conditioning finisher", items: [{ id: "kb-high-pull", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }, { id: "burpee", role: "conditioning" }] },
+      { label: "F", title: "Conditioning finisher", items: [{ id: "kb-high-pull", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }, { id: "db-snatch", role: "conditioning" }] },
     ],
   },
 ];
@@ -302,7 +302,30 @@ export function workSeconds(s: Extract<Step, { kind: "set" }>, ex: Exercise) {
   if (s.seconds != null) per = s.seconds;
   else if (holds) per = +holds[1] * (+holds[2] + 2);
   else per = Math.max(12, Math.round((s.repRange ? s.repRange[1] : parseInt(s.target) || 10) * 1.8 + (ex.perSide ? 3 : 6)));
-  return ex.perSide ? per * 2 + SWITCH_SECONDS : per;
+  return (ex.perSide ? per * 2 + SWITCH_SECONDS : per) + (ex.extraSeconds ?? 0);
+}
+
+// Calorie estimate from MET values (Compendium of Physical Activities):
+// warm-up ~3.5, resistance supersets ~5, swings/power ~6, core ~3.8,
+// conditioning intervals ~8. Rest time counts toward each block's MET.
+const MET: Partial<Record<Role, number>> = { conditioning: 8, power: 6, core: 3.8 };
+export function estimateCalories(steps: Step[], done: (key: string) => boolean, elapsedSec: number, kg: number) {
+  let metSec = 0;
+  let sec = 0;
+  for (const st of steps) {
+    let met: number;
+    let t: number;
+    if (st.kind === "warmup") [met, t] = [3.5, st.move.seconds];
+    else if (st.kind === "prep") [met, t] = [2, PREP_SECONDS];
+    else {
+      if (!done(st.key)) continue;
+      [met, t] = [MET[st.role] ?? 5, workSeconds(st, EXERCISES[st.exerciseId]) + st.rest];
+    }
+    metSec += met * t;
+    sec += t;
+  }
+  const avgMet = sec ? metSec / sec : 5;
+  return Math.round(((avgMet * 3.5 * kg) / 200) * (elapsedSec / 60));
 }
 
 // Session length: set timers plus rest, warm-up and the weights screen.
@@ -339,7 +362,7 @@ export const PRINCIPLES = [
   },
   {
     title: "Finish with conditioning",
-    body: "Every session ends with hard 30-second intervals (swings, thrusters, burpees, mountain climbers, high pulls). Short, intense intervals improve cardiovascular fitness and keep heart rate up without eating into strength work.",
+    body: "Every session ends with hard 30-second intervals (swings, thrusters, snatches, mountain climbers, high pulls). Short, intense intervals improve cardiovascular fitness and keep heart rate up without eating into strength work.",
   },
   {
     title: "Spine-sparing core",

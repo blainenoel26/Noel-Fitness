@@ -15,6 +15,7 @@ export interface Exercise {
   muscles: string;
   pattern: string;
   pair?: boolean; // uses two dumbbells/kettlebells at the logged weight
+  extraSeconds?: number; // added to the prescribed set time
   hidden?: boolean; // retired from the program and library
   mode: Mode;
   perSide?: boolean;
@@ -136,6 +137,7 @@ export const EXERCISES: Record<string, Exercise> = {
   },
   "goblet-lateral-lunge": {
     id: "goblet-lateral-lunge",
+    extraSeconds: 20,
     name: "Goblet Lateral Lunge",
     implements: ["kb", "db"],
     muscles: "Adductors, glutes, quads",
@@ -594,7 +596,7 @@ export const EXERCISES: Record<string, Exercise> = {
       "Moderate weight — keep moving the whole interval",
     ],
     avoid: "Pressing with a soft, arched lower back",
-    swaps: ["burpee"],
+    swaps: ["kb-swing"],
   },
   "mountain-climber": {
     id: "mountain-climber",
@@ -609,9 +611,26 @@ export const EXERCISES: Record<string, Exercise> = {
       "Keep hips level with your shoulders",
     ],
     avoid: "Hips piking up toward the ceiling",
-    swaps: ["burpee"],
+    swaps: ["plank-shoulder-tap"],
+  },
+  "db-snatch": {
+    id: "db-snatch",
+    name: "Alternating Dumbbell Snatch",
+    implements: ["db", "kb"],
+    muscles: "Glutes, hamstrings, shoulders, upper back — power",
+    pattern: "Conditioning",
+    mode: "time",
+    cues: [
+      "One dumbbell between your feet, hinge and grab it",
+      "Drive the hips and pull it straight up close to your body",
+      "Punch it overhead to lockout in one smooth move",
+      "Lower to the floor and switch hands each rep",
+    ],
+    avoid: "Rounding the back as you pick it up",
+    swaps: ["kb-high-pull"],
   },
   burpee: {
+    hidden: true,
     id: "burpee",
     name: "Burpee",
     implements: [],
@@ -817,6 +836,7 @@ export const EXERCISES: Record<string, Exercise> = {
     fixedTarget: ["8", "10", "12"],
   },
   "kb-windmill": {
+    hidden: true,
     id: "kb-windmill",
     name: "Kettlebell Windmill",
     implements: ["kb", "db"],

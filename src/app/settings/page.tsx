@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { EquipmentSettings } from "@/lib/exercises";
 import { currentWeek, getSyncStatus, setCurrentWeek, syncNow, updateSettings, useStore } from "@/lib/store";
 import { cloudEnabled, supabase } from "@/lib/supabase";
+import { convert, fmt } from "@/lib/progression";
 
 const GEAR: { key: keyof EquipmentSettings; label: string; hint: string }[] = [
   { key: "db", label: "Dumbbells", hint: "Adjustable or a set of pairs" },
@@ -105,6 +106,24 @@ export default function SettingsPage() {
         >
           <span />
         </button>
+      </div>
+
+      <div className="card tight row-between">
+        <div>
+          <b>Body weight</b>
+          <div className="small muted">Used for the calorie estimate after each workout</div>
+        </div>
+        <input
+          className="search num-input"
+          inputMode="decimal"
+          placeholder={settings.unit}
+          defaultValue={settings.bodyWeightKg ? fmt(Math.round(convert(settings.bodyWeightKg, "kg", settings.unit))) : ""}
+          key={settings.unit}
+          onBlur={(e) => {
+            const v = parseFloat(e.target.value);
+            updateSettings({ bodyWeightKg: v > 0 ? convert(v, settings.unit, "kg") : null });
+          }}
+        />
       </div>
 
       <h3 className="section">Equipment available right now</h3>

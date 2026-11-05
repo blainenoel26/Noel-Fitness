@@ -7,6 +7,7 @@ import {
   PREP_SECONDS,
   SWITCH_SECONDS,
   buildSteps,
+  estimateCalories,
   estimateMinutes,
   getDay,
   weekInfo,
@@ -14,8 +15,8 @@ import {
   type SessionLength,
   type Step,
 } from "@/lib/program";
-import { fmt, suggest } from "@/lib/progression";
-import { currentWeek, lastSetsFor, saveSession, useStore, uuid, type SetLog } from "@/lib/store";
+import { convert, fmt, suggest } from "@/lib/progression";
+import { currentWeek, lastSetsFor, saveSession, updateSettings, useStore, uuid, type SetLog } from "@/lib/store";
 
 type SetStep = Extract<Step, { kind: "set" }>;
 
@@ -59,7 +60,7 @@ function unlockAudio() {
     /* no audio */
   }
 }
-function beep(times = 1, freq = 880, dur = 0.2) {
+function beep(times = 1, freq = 880, dur = 0.2, gain = 0.4) {
   try {
     navigator.vibrate?.(times > 1 ? [200, 100, 200, 100, 300] : Math.round(dur * 1000));
     if (!audio) return;
@@ -71,7 +72,7 @@ function beep(times = 1, freq = 880, dur = 0.2) {
       g.connect(audio.destination);
       const t = audio.currentTime + i * 0.28;
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       o.start(t);
       o.stop(t + dur + 0.02);
@@ -362,7 +363,7 @@ export default function Player({ dayId }: { dayId: string }) {
     lastTick.current = sec;
     if ((phase === "ready" || phase === "rest") && sec >= 1 && sec <= 3) beep(1, 660, 0.08);
     // heads-up that the current timer is about to end
-    if (sec === 10 && timer.total > 15 && (phase !== "ready" || step?.kind === "prep")) beep(2, 1250, 0.1);
+    if (sec === 10 && timer.total > 15 && (phase !== "ready" || step?.kind === "prep")) beep(2, 1250, 0.1, 0.48); // 20% louder than other cues
     if (phase === "work" && ex?.perSide && setStep) {
       const side = (timer.total - SWITCH_SECONDS) / 2;
       const el = timer.total - timer.left;
@@ -382,7 +383,8 @@ export default function Player({ dayId }: { dayId: string }) {
   // ---------- finished ----------
   if (!step) {
     const entries = Object.values(active.entries);
-    const volume = entries.reduce((v, e) => v + (e.weight ?? 0) * (e.reps ?? 0), 0);
+    const kg = settings.bodyWeightKg;
+    const calories = kg ? estimateCalories(steps, (k) => !!active.entries[k], elapsed, kg) : null;
     const finish = () => {
       const sets: SetLog[] = steps
         .filter((s): s is SetStep => s.kind === "set" && !!active.entries[s.key])
@@ -421,10 +423,26 @@ export default function Player({ dayId }: { dayId: string }) {
               <span>sets</span>
             </div>
             <div>
-              <b>{fmt(Math.round(volume))}</b>
-              <span>{settings.unit} lifted</span>
+              <b>{calories ?? "—"}</b>
+              <span>est. calories</span>
             </div>
           </div>
+          {calories == null ? (
+            <div className="card tight row-between">
+              <span className="small">Your body weight ({settings.unit}) for a calorie estimate:</span>
+              <input
+                className="search num-input"
+                inputMode="decimal"
+                placeholder={settings.unit}
+                onBlur={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (v > 0) updateSettings({ bodyWeightKg: convert(v, settings.unit, "kg") });
+                }}
+              />
+            </div>
+          ) : (
+            <p className="muted small">Calories are an estimate from exercise type and time. A heart-rate watch is more accurate.</p>
+          )}
           <p className="muted small">Cool down: 2–3 min easy walking, then a hip-flexor and chest stretch.</p>
           <button className="btn primary block" onClick={finish}>
             Save workout
@@ -648,7 +666,7 @@ export default function Player({ dayId }: { dayId: string }) {
 
   // ---------- ready / work / idle ----------
   const swapOptions = [EXERCISES[s.exerciseId], ...EXERCISES[s.exerciseId].swaps.map((id) => EXERCISES[id])].filter(
-    (e, i, arr) => e && arr.findIndex((x) => x.id === e.id) === i,
+    (e, i, arr) => e && !e.hidden && arr.findIndex((x) => x.id === e.id) === i,
   );
 
   let sideLabel = "";
