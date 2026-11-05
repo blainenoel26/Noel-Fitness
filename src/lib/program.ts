@@ -89,6 +89,7 @@ interface Block {
   title: string;
   items: BlockItem[]; // 1 = straight sets, 2 = superset, 3+ = circuit
   minLength?: SessionLength; // only included in sessions at least this long
+  extraSets?: number; // added to every item in the block (uses time freed from the finisher)
 }
 
 export interface Day {
@@ -122,9 +123,9 @@ export const DAYS: Day[] = [
       { label: "A", title: "Power superset", items: [{ id: "kb-swing", role: "power" }, { id: "half-kneeling-kb-press", role: "primary" }] },
       { label: "B", title: "Strength superset", items: [{ id: "db-rdl", role: "primary" }, { id: "kb-gorilla-row", role: "secondary" }] },
       { label: "C", title: "Isolation superset", items: [{ id: "single-leg-calf-raise", role: "isolation" }, { id: "db-overhead-triceps", role: "isolation" }] },
-      { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "db-lateral-raise", role: "isolation" }, { id: "db-biceps-curl", role: "isolation" }] },
+      { label: "D", title: "Accessory superset", minLength: 45, extraSets: 1, items: [{ id: "db-lateral-raise", role: "isolation" }, { id: "db-biceps-curl", role: "isolation" }] },
       { label: "E", title: "Loaded core circuit", items: [{ id: "kb-plank-pull-through", role: "core" }, { id: "suitcase-carry", role: "core" }, { id: "bird-dog", role: "core" }] },
-      { label: "F", title: "Conditioning finisher", items: [{ id: "db-thruster", role: "conditioning" }, { id: "kb-high-pull", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }] },
+      { label: "F", title: "Conditioning finisher", minLength: 45, items: [{ id: "db-thruster", role: "conditioning" }, { id: "kb-high-pull", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }] },
     ],
   },
   {
@@ -149,9 +150,9 @@ export const DAYS: Day[] = [
       { label: "A", title: "Power superset", items: [{ id: "kb-clean-press", role: "primary" }, { id: "db-step-up", role: "primary" }] },
       { label: "B", title: "Strength superset", items: [{ id: "kb-single-leg-rdl", role: "secondary" }, { id: "db-pullover", role: "secondary" }] },
       { label: "C", title: "Isolation superset", items: [{ id: "db-chest-fly", role: "isolation" }, { id: "db-skull-crusher", role: "isolation" }] },
-      { label: "D", title: "Accessory superset", minLength: 45, items: [{ id: "db-arnold-press", role: "secondary" }, { id: "db-zottman-curl", role: "isolation" }] },
+      { label: "D", title: "Accessory superset", minLength: 45, extraSets: 1, items: [{ id: "db-arnold-press", role: "secondary" }, { id: "db-zottman-curl", role: "isolation" }] },
       { label: "E", title: "Core + carry circuit", items: [{ id: "farmer-carry", role: "core" }, { id: "reverse-crunch", role: "core" }, { id: "kb-halo", role: "core" }] },
-      { label: "F", title: "Conditioning finisher", items: [{ id: "kb-high-pull", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }, { id: "db-snatch", role: "conditioning" }] },
+      { label: "F", title: "Conditioning finisher", minLength: 45, items: [{ id: "kb-high-pull", role: "conditioning" }, { id: "mountain-climber", role: "conditioning" }, { id: "db-snatch", role: "conditioning" }] },
     ],
   },
 ];
@@ -196,14 +197,14 @@ const FINISHER_ROUND_REST = 30;
 // an extra core round and longer rests.
 export type SessionLength = 30 | 45 | 60;
 export const LENGTHS: { value: SessionLength; label: string; hint: string }[] = [
-  { value: 30, label: "30 min", hint: "Express — main lifts and core, 1 finisher round on kettlebell days" },
-  { value: 45, label: "45 min", hint: "Standard — extra set on main lifts, accessory superset, 2 finisher rounds" },
-  { value: 60, label: "60 min", hint: "Extended — 2 extra sets on main lifts, extra core round, 2 finisher rounds" },
+  { value: 30, label: "30 min", hint: "Express — main lifts, isolation and core (no finisher)" },
+  { value: 45, label: "45 min", hint: "Standard — extra set on main lifts, accessory superset, 1 finisher round on days 2 & 4" },
+  { value: 60, label: "60 min", hint: "Extended — 2 extra sets on main lifts, extra core round, 1 finisher round on days 2 & 4" },
 ];
 const LENGTH_ADJ: Record<SessionLength, { sets: Partial<Record<Role, number>>; core: number; finisher: number; rest: number }> = {
-  30: { sets: { primary: 0, secondary: 0, isolation: -1, power: -1 }, core: 0, finisher: 1, rest: -10 },
-  45: { sets: { primary: 1, secondary: 1, isolation: 0, power: 0 }, core: 0, finisher: 2, rest: -10 },
-  60: { sets: { primary: 2, secondary: 1, isolation: 1, power: 1 }, core: 1, finisher: 2, rest: 0 },
+  30: { sets: { primary: 0, secondary: 0, isolation: 0, power: -1 }, core: 0, finisher: 1, rest: -10 },
+  45: { sets: { primary: 1, secondary: 1, isolation: 0, power: 0 }, core: 0, finisher: 1, rest: -10 },
+  60: { sets: { primary: 2, secondary: 1, isolation: 1, power: 1 }, core: 1, finisher: 1, rest: 0 },
 };
 
 export function buildSteps(day: Day, info: WeekInfo, length: SessionLength = 45): Step[] {
@@ -224,7 +225,7 @@ export function buildSteps(day: Day, info: WeekInfo, length: SessionLength = 45)
           ? info.phase.coreRounds + adj.core
           : role === "conditioning"
             ? adj.finisher
-            : Math.max(2, info.phase.roles[role].sets + (adj.sets[role] ?? 0));
+            : Math.max(2, info.phase.roles[role].sets + (adj.sets[role] ?? 0) + (block.extraSets ?? 0));
       if (info.deload) n = Math.max(1, Math.ceil(n / 2));
       return n;
     };
