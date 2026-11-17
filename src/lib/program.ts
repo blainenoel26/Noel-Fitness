@@ -294,14 +294,19 @@ export const PREP_SECONDS = 45;
 export const SWITCH_SECONDS = 5;
 
 // Prescribed time for a set. Holds use their hold time; rep sets allow
-// ~1.8s per rep plus a little setup. Per-side work runs both sides with a switch gap.
+// ~1.8s per rep plus a little setup, then scaled. Per-side work runs both
+// sides with a switch gap.
+const REP_TIME_SCALE = 1.2; // rep-based sets only; holds and intervals keep their exact time
+
 export function workSeconds(s: Extract<Step, { kind: "set" }>, ex: Exercise) {
   let per: number;
   const holds = s.target.match(/(\d+) × (\d+)s/);
+  const timed = s.seconds != null || !!holds;
   if (s.seconds != null) per = s.seconds;
   else if (holds) per = +holds[1] * (+holds[2] + 2);
   else per = Math.max(12, Math.round((s.repRange ? s.repRange[1] : parseInt(s.target) || 10) * 1.8 + (ex.perSide ? 3 : 6)));
-  return (ex.perSide ? per * 2 + SWITCH_SECONDS : per) + (ex.extraSeconds ?? 0);
+  const total = (ex.perSide ? per * 2 + SWITCH_SECONDS : per) + (ex.extraSeconds ?? 0);
+  return timed ? total : Math.round(total * (ex.timeScale ?? REP_TIME_SCALE));
 }
 
 // Calorie estimate from MET values (Compendium of Physical Activities):

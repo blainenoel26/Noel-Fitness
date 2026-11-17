@@ -16,6 +16,7 @@ export interface Exercise {
   pattern: string;
   pair?: boolean; // uses two dumbbells/kettlebells at the logged weight
   extraSeconds?: number; // added to the prescribed set time
+  timeScale?: number; // overrides the default rep-set time scale
   hidden?: boolean; // retired from the program and library
   mode: Mode;
   perSide?: boolean;
@@ -138,6 +139,7 @@ export const EXERCISES: Record<string, Exercise> = {
   "goblet-lateral-lunge": {
     id: "goblet-lateral-lunge",
     extraSeconds: 20,
+    timeScale: 1.5,
     name: "Goblet Lateral Lunge",
     implements: ["kb", "db"],
     muscles: "Adductors, glutes, quads",
